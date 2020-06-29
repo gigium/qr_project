@@ -43,11 +43,11 @@ app.post("/signup", (req, res) => {
 	firebase
 		.auth()
 		.createUserWithEmailAndPassword(newUser.email, newUser.password)
-		.then((data) => {
-			return res
-				.status(201)
-				.json({ message: `user ${data.user.uid} signed up successfully` });
-		})
+		// .then((data) => {
+		// 	return res
+		// 		.status(201)
+		// 		.json({ message: `user ${data.user.uid} signed up successfully` });
+		// })
 		.then((data) => {
 			userId = data.user.uid;
 			return data.user.getIdToken();
