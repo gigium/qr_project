@@ -28,26 +28,32 @@ const { validateSignupData, validateLoginData } = require("./util/validators");
 //signup route
 app.post("/signup", (req, res) => {
   const newUser = {
+    business: req.body.business,
     email: req.body.email,
     password: req.body.password,
     confirmPassword: req.body.confirmPassword,
-    name: req.body.name,
-    surname: req.body.surname,
+    // name: req.body.name,
+    // surname: req.body.surname,
   };
 
   const { valid, errors } = validateSignupData(newUser);
   if (!valid) return res.status(400).json(errors);
 
   let token, userId;
-
-  firebase
-    .auth()
-    .createUserWithEmailAndPassword(newUser.email, newUser.password)
-    // .then((data) => {
-    // 	return res
-    // 		.status(201)
-    // 		.json({ message: `user ${data.user.uid} signed up successfully` });
-    // })
+  //if user is business insert business info in business table
+  // else insert user info in client table
+  // always insert user in table users
+  db.doc("/users/" + newUser.email)
+    .get()
+    .then((doc) => {
+      if (doc.exists) {
+        return res.status(400).json({ handle: "this email is already in use" });
+      } else {
+        return firebase
+          .auth()
+          .createUserWithEmailAndPassword(newUser.email, newUser.password);
+      }
+    })
     .then((data) => {
       userId = data.user.uid;
       return data.user.getIdToken();
@@ -55,12 +61,30 @@ app.post("/signup", (req, res) => {
     .then((idToken) => {
       token = idToken;
       const userCredentials = {
-        name: newUser.name,
-        surname: newUser.surname,
         email: newUser.email,
         createdAt: new Date().toISOString(),
+        userId: userId,
       };
-      return db.doc("/users/" + userId).set(userCredentials);
+
+      return db.doc("/users/" + newUser.email).set(userCredentials);
+    })
+    .then(() => {
+      let userData = {};
+      if (newUser.business === true) {
+        userData = {
+          userId: userId,
+          businessName: req.body.businessName,
+        };
+        return db.doc("/business/" + userId).set(userData);
+      }
+      if (newUser.business === false) {
+        userData = {
+          userId: userId,
+          name: req.body.name,
+          surname: req.body.surname,
+        };
+        return db.doc("/clients/" + userId).set(userData);
+      }
     })
     .then(() => {
       return res.status(201).json({ token });
@@ -70,6 +94,7 @@ app.post("/signup", (req, res) => {
       if (err.code === "auth/email-already-in-use") {
         return res.status(400).json({ email: "email already in use" });
       }
+      // delete user here
       return res
         .status(500)
         .json({ general: "Something went wrong, please try again" });
